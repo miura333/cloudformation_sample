@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: cf tutorial stack
+Parameters:
+# Parameters以下に変数を定義する
+  Prefix:
+    Type: String
+    Default: testing
+    Description: Prefix Name
+
+  ServiceName:
+    Type: String
+    Default: cf-tutorial
+
+  MyVpcId:
+    Type: String
+    Default: <Target Vpc Id Here>
+
+  MySubnetA:
+    Type: String
+    Default: <Public Subnet Here>
+
+  MySubnetC:
+    Type: String
+    Default: <Public Subnet Here>
+
+  MyEC2Instance:
+    Type: String
+    Default: <EC2 Instance Here>
+
+  InternetALBName:
+    Type: String
+    Default: "test-alb"
+Resources:
+# Resources以下に管理したいResourceを管理する
+  ALBSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Sub "${MyVpcId}"
+      GroupName: !Sub "${Prefix}-alb-sg"
+      GroupDescription: "-"
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${Prefix}-alb-sg"
+  # Rule
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: "0.0.0.0/0"
+
+  TargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      VpcId: !Sub "${MyVpcId}"
+      Name: !Sub "${Prefix}-${InternetALBName}-tg"
+      Protocol: HTTP
+      Port: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: "/"
+      HealthCheckPort: "traffic-port"
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      HealthCheckTimeoutSeconds: 5
+      HealthCheckIntervalSeconds: 10
+      Matcher:
+        HttpCode: 200
+      Tags:
+        - Key: Name
+          Value: !Sub "${Prefix}-${InternetALBName}-tg"
+      TargetGroupAttributes:
+        - Key: "deregistration_delay.timeout_seconds"
+          Value: 300
+        - Key: "stickiness.enabled"
+          Value: false
+        - Key: "stickiness.type"
+          Value: lb_cookie
+        - Key: "stickiness.lb_cookie.duration_seconds"
+          Value: 86400
+      Targets:
+        - Id: !Sub "${MyEC2Instance}"
+          Port: 80
+
+  InternetALB:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: !Sub "${Prefix}-${InternetALBName}-alb"
+      Tags:
+        - Key: Name
+          Value: !Sub "${Prefix}-${InternetALBName}-alb"
+      Scheme: "internet-facing"
+      LoadBalancerAttributes:
+        - Key: "deletion_protection.enabled"
+          Value: false
+        - Key: "idle_timeout.timeout_seconds"
+          Value: 60
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !Sub "${MySubnetA}"
+        - !Sub "${MySubnetC}"
+
+  ALBListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref InternetALB
+      Port: 80
+      Protocol: HTTP

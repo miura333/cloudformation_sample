@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: cf tutorial stack
+Parameters:
+# Parameters以下に変数を定義する
+  Prefix:
+    Type: String
+    Default: testing
+    Description: Prefix Name
+
+  ServiceName:
+    Type: String
+    Default: cf-tutorial
+
+  MyVpcId:
+    Type: String
+    Default: <Target Vpc Id Here>
+
+  MySubnetA:
+    Type: String
+    Default: <Public Subnet Here>
+
+  MySubnetC:
+    Type: String
+    Default: <Public Subnet Here>
+
+  InternetALBName:
+    Type: String
+    Default: "test-alb"
+Resources:
+# Resources以下に管理したいResourceを管理する
+  Ec2SecurityGroupApp:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupName: !Sub "${Prefix}_${ServiceName}_app"
+      GroupDescription: "web server security group"
+      # 既存のVPC IDを指定すること
+      VpcId: !Sub "${MyVpcId}"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: !Sub "${Prefix}_${ServiceName}_app"
+
+  Ec2InstanceServer:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      SubnetId: !Sub "${MySubnetA}"
+      AvailabilityZone: "us-east-1a"
+      # AmazonLinux2を指定しています
+      ImageId: "ami-0947d2ba12ee1ff75"
+      InstanceType: "t2.micro"
+      # 既存のキーペア名を指定すること
+      KeyName: "miura-test"
+      SecurityGroupIds:
+        - !Ref Ec2SecurityGroupApp
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
+      Tags:
+        - Key: Name
+          Value: !Sub "${Prefix}_${ServiceName}_app"
+
+Outputs:
+# VPC
+  EC2:
+    Value: !Ref Ec2InstanceServer
+    Export:
+      Name: !Sub "${Prefix}-ec2"

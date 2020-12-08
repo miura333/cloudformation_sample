@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: cf tutorial stack
+Parameters:
+# Parameters以下に変数を定義する
+  Prefix:
+    Type: String
+    Default: testing
+    Description: Prefix Name
+
+  ServiceName:
+    Type: String
+    Default: cf-tutorial
+
+  StackName:
+    Type: String
+    Default: test-dev
+
+  OfficeIpAddress:
+    Type: String
+    Default: <IP Address Here>
+
+  ALBArn:
+    Type: String
+    Default: <ALB Arn Here>
+
+Resources:
+# Resources以下に管理したいResourceを管理する
+  AvailableAcl:
+    Type: 'AWS::WAFv2::WebACL'
+    Properties:
+      Name: !Sub ${StackName}-webAcl
+      DefaultAction:
+        Block: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: false
+        MetricName: !Sub ${StackName}-webAcl-Metric
+      Scope: REGIONAL
+      Rules:
+        - Name: ThroughPathRule
+          Priority: 0
+          Action:
+            Allow: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: false
+            MetricName: !Sub ${StackName}-ThroughPathRule-Metric
+          Statement:
+            ByteMatchStatement:
+              FieldToMatch:
+                UriPath: {}
+              PositionalConstraint: "STARTS_WITH"
+              SearchString: "/api/hoge"
+              TextTransformations:
+                - Priority: 0
+                  Type: "NONE"
+
+        - Name: OfficeIpRule
+          Priority: 1
+          Action:
+            Allow: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: false
+            MetricName: !Sub ${StackName}-OfficeIpRule-Metric
+          Statement:
+            IPSetReferenceStatement:
+              Arn: !GetAtt OfficeIp.Arn
+
+  # IP制限
+  OfficeIp:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Name: !Sub ${StackName}-OfficeIp
+      Addresses:
+        - !Sub "${OfficeIpAddress}"
+      IPAddressVersion: IPV4
+      Scope: REGIONAL
+
+  WebACLAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !Sub "${ALBArn}"
+      WebACLArn: !GetAtt AvailableAcl.Arn
